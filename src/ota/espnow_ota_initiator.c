@@ -183,7 +183,7 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
     espnow_ota_info_t request_ota_info = {.type = ESPNOW_OTA_TYPE_REQUEST};
 
     espnow_frame_head_t frame_head = {
-        .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES,
+        .retransmit_count = 10,
         .broadcast        = true,
         .magic            = esp_random(),
         .filter_adjacent_channel = true,
@@ -197,12 +197,15 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
     g_info_en = true;
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
-    for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = 500; i < 5 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
+    for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = 500; i < 100 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
             ++i, recv_ticks = 500) {
-        ret = espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_BROADCAST, &request_ota_info, 1, &frame_head, portMAX_DELAY);
+        ret = espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_BROADCAST, &request_ota_info, 1, &frame_head, 25);
         ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_send");
+        vTaskDelay(25);
 
-        vTaskDelay(recv_ticks);
+        if(g_scan_num > 0){
+            break;
+        }
     }
 
     *info_list = g_info_list;
@@ -272,7 +275,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
     espnow_frame_head_t status_frame = {
         .group = true,
         .broadcast = true,
-        .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES,
+        .retransmit_count = 10,
         .magic    = esp_random(),
         .filter_adjacent_channel = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
@@ -280,7 +283,7 @@ static esp_err_t espnow_ota_request_status(uint8_t (*progress_array)[ESPNOW_OTA_
         .security         = CONFIG_ESPNOW_OTA_SECURITY,
     };
 
-    for (int i = 0, wait_ticks = pdMS_TO_TICKS(1000); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(500)) {
+    for (int i = 0, wait_ticks = pdMS_TO_TICKS(500); i < 3 && response_num > 0; ++i, wait_ticks = pdMS_TO_TICKS(100)) {
         if (espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_GROUP_OTA, status,
                         sizeof(espnow_ota_status_t), &status_frame, portMAX_DELAY) != ESP_OK) {
             ESP_LOGW(TAG, "Request devices upgrade status");
@@ -400,7 +403,7 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
 
     espnow_frame_head_t frame_head = {
         .broadcast        = true,
-        .retransmit_count = CONFIG_ESPNOW_OTA_RETRANSMISSION_TIMES,
+        .retransmit_count = CONFIG_ESPNOW_OTA_SEND_RETRY_NUM,
         .group            = true,
         .forward_ttl      = CONFIG_ESPNOW_OTA_SEND_FORWARD_TTL,
         .forward_rssi     = CONFIG_ESPNOW_OTA_SEND_FORWARD_RSSI,
@@ -410,7 +413,7 @@ esp_err_t espnow_ota_initiator_send(const uint8_t addrs_list[][6], size_t addrs_
     if (addrs_num == 1 && ESPNOW_ADDR_IS_BROADCAST(addrs_list[0])) {
         espnow_ota_responder_t *info_list = NULL;
         size_t info_num = 0;
-        ret = espnow_ota_initiator_scan(&info_list, &info_num, 3000);
+        ret = espnow_ota_initiator_scan(&info_list, &info_num, 1500);
         ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "<%s> espnow_ota_initiator_scan", esp_err_to_name(ret));
 
         ESP_LOGI(TAG, "Scan OTA list, num: %d", info_num);
