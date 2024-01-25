@@ -197,8 +197,8 @@ esp_err_t espnow_ota_initiator_scan(espnow_ota_responder_t **info_list, size_t *
     g_info_en = true;
     espnow_set_config_for_data_type(ESPNOW_DATA_TYPE_OTA_STATUS, 1, espnow_ota_initiator_status_process);
 
-    for (int i = 0, start_ticks = xTaskGetTickCount(), recv_ticks = 500; i < 100 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
-            ++i, recv_ticks = 500) {
+    for (int i = 0, start_ticks = xTaskGetTickCount(); i < 100 && wait_ticks - (xTaskGetTickCount() - start_ticks) > 0;
+            ++i) {
         ret = espnow_send(ESPNOW_DATA_TYPE_OTA_DATA, ESPNOW_ADDR_BROADCAST, &request_ota_info, 1, &frame_head, 25);
         ESP_ERROR_GOTO(ret != ESP_OK, EXIT, "espnow_send");
         vTaskDelay(25);
